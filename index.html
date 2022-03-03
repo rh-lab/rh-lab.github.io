@@ -435,23 +435,216 @@ body.book #toc,body.book #preamble,body.book h1.sect0,body.book .sect1>h2{page-b
 @media amzn-kf8{#header,#content,#footnotes,#footer{padding:0}}
 </style>
 </head>
-<body class="article">
+<body class="article toc2 toc-left">
 <div id="header">
 <h1>rh-lab</h1>
+<div id="toc" class="toc2">
+<div id="toctitle">Table of Contents</div>
+<ul class="sectlevel1">
+<li><a href="#_launch_centos_stream_with_kvm">Launch CentOS stream with KVM</a></li>
+</ul>
+</div>
 </div>
 <div id="content">
+<div class="sect1">
+<h2 id="_launch_centos_stream_with_kvm">Launch CentOS stream with KVM</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When you launch a virtual machine with KVM, use a cloud image instead of an ISO image. A cloud image is an image of a fully installed operating system that you can use as a template to quickly launch virtual machines.</p>
+</div>
 <div class="ulist">
-<div class="title">Prerequisites</div>
+<div class="title">What you need</div>
 <ul>
 <li>
-<p><a href="https://github.com/rheslop/kvm-os-launcher">kvm-os-launcher</a></p>
+<p>Packages installed that are required for KVM virtualization, such as <code>libvirt-client</code>, <code>virt-manager</code>, and <code>virt-install</code>.</p>
+</li>
+<li>
+<p>A cloud image of <a href="https://www.centos.org/centos-stream/">CentOS stream</a>: I use <a href="https://cloud.centos.org/centos/8-stream/x86_64/images/CentOS-Stream-GenericCloud-8-20220125.1.x86_64.qcow2">CentOS-Stream-GenericCloud-8-20220125.1.x86_64.qcow2</a> in the following text.</p>
+</li>
+<li>
+<p>A pre-created KVM network.</p>
 </li>
 </ul>
+</div>
+<div class="olist arabic">
+<div class="title">Steps</div>
+<ol class="arabic">
+<li>
+<p>Export the following variables.</p>
+<table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">name</th>
+<th class="tableblock halign-left valign-top">purpose</th>
+<th class="tableblock halign-left valign-top">Example command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">NAME</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">VM name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>export NAME=centos-stream</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">DOMAIN</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">domain name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>export DOMAIN=example.local</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SIZE</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Disk size in GB</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>export SIZE=100</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">MEMORY</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Memory in Kb</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>export MEMORY=4096</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">VMNET</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name of KVM virtual network</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>export VMNET=default</code></p></td>
+</tr>
+</tbody>
+</table>
+</li>
+<li>
+<p>Copy your cloud image to the <code>/var/lib/libvirt/images</code> directory. Use a subdirectory to keep templates separate from virtual machine images:</p>
+<div class="listingblock">
+<div class="content">
+<pre>sudo mkdir /var/lib/libvirt/images/templates
+sudo cp CentOS-Stream-GenericCloud-8-20220125.1.x86_64.qcow2 /var/lib/libvirt/images/templates</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Create a disk for your virtual machine from the template:</p>
+<div class="listingblock">
+<div class="content">
+<pre>sudo qemu-img create -f qcow2 /var/lib/libvirt/images/${NAME}.qcow2 ${SIZE}G</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Expand the template onto your blank disk:</p>
+<div class="listingblock">
+<div class="content">
+<pre>sudo virt-resize --expand /dev/sda1 \
+/var/lib/libvirt/images/templates/CentOS-Stream-GenericCloud-8-20220125.1.x86_64.qcow2 \
+/var/lib/libvirt/images/${NAME}.qcow2</pre>
+</div>
+</div>
+</li>
+<li>
+<p>Optional: Create a networking template to insert into the disk. Create one for each network to attach to your virtual machine. Completing this step will help with moving to an automated process at a later time. Use the following text as an example:</p>
+<div class="listingblock">
+<div class="content">
+<pre>cat &gt; /tmp/ifcfg-eth0 &lt;&lt; EOF
+DEVICE="eth0"
+BOOTPROTO="none"
+ONBOOT="yes"
+TYPE="Ethernet"
+USERCTL="yes"
+IPADDR="192.168.122.100"
+NETMASK="255.255.255.0"
+GATEWAY="192.168.122.1"
+DNS1="192.168.122.1"
+EOF</pre>
+</div>
+</div>
+<div class="admonitionblock important">
+<table>
+<tr>
+<td class="icon">
+<img src="icons/important.png" alt="Important">
+</td>
+<td class="content">
+You must know the details of your virtual network to create an operational network configuration file.
+</td>
+</tr>
+</table>
+</div>
+</li>
+<li>
+<p>You can configure your virtual disk using <code>virt-customize</code> to ensure the it bootstraps to your needed specifications. Below is an example:</p>
+<div class="listingblock">
+<div class="content">
+<pre>sudo export LIBGUESTFS_BACKEND=direct
+sudo virt-customize -a /var/lib/libvirt/images/${NAME}.qcow2
+--root-password password:password \
+--hostname ${NAME}.${DOMAIN} \
+--edit /etc/ssh/sshd_config:s/PasswordAuthentication\ no/PasswordAuthentication\ yes/g \
+--copy-in /tmp/ifcfg-eth0:/etc/sysconfig/network-scripts \
+--ssh-inject root \
+--run-command '/usr/bin/yum -y remove cloud-init' \
+--run-command 'echo "UseDNS no" &gt;&gt; /etc/ssh/sshd_config' \
+--run-command 'echo "nameserver 8.8.8.8" &gt;&gt; /etc/resolv.conf' \
+--selinux-relabel</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This command does the following:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Sets the root password to 'password'.</p>
+</li>
+<li>
+<p>Sets the FQDN</p>
+</li>
+<li>
+<p>Allows password authentication in the <code>sshd_config</code> configuration file</p>
+</li>
+<li>
+<p>Inserts the network configuration script</p>
+</li>
+<li>
+<p>Injects root&#8217;s public SSH key</p>
+</li>
+<li>
+<p>Removes cloud-init</p>
+</li>
+<li>
+<p>Disables UseDNS in the <code>sshd_config</code> configuration file</p>
+</li>
+<li>
+<p>Adds <code>8.8.8.8</code> as a DNS server</p>
+</li>
+</ul>
+</div>
+</li>
+<li>
+<p>Create the virtual machine. The following commands create a definition file, create a VM from that definition file, and then removes the definition file.</p>
+<div class="listingblock">
+<div class="content">
+<pre>/usr/bin/virt-install \
+--disk path=/var/lib/libvirt/images/${NAME}.qcow2 \
+--import \
+--vcpus 2 \
+--network network=${VMNET} \
+--name standalone \
+--ram ${MEMORY} \
+--os-type=linux \
+--dry-run --print-xml &gt; /tmp/${NAME}.xml
+
+virsh define --file /tmp/${NAME}.xml &amp;&amp; rm /tmp/${NAME}.xml</pre>
+</div>
+</div>
+</li>
+</ol>
+</div>
+</div>
 </div>
 </div>
 <div id="footer">
 <div id="footer-text">
-Last updated 2022-02-14 15:25:18 -0600
+Last updated 2022-03-03 08:13:19 -0600
 </div>
 </div>
 </body>
